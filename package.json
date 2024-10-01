@@ -18,5 +18,8 @@
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.7.0",
     "winston": "^3.14.2"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
   }
 }
