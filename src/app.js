@@ -1,8 +1,8 @@
 const express = require('express');
+const { Router } = require('express');
 const config = require('./config');
 const mongoose = require('mongoose')
-const bookRoutes = require('./routes/bookRoutes');
-const authRoutes = require('./routes/authRoutes');
+const v2Router = require('./routes/index');
 const errorHandler = require('./middleware/errorHandler');
 
 
@@ -16,7 +16,7 @@ app.use(errorHandler);
 mongoose.connect(config.mongoURI, {});
 
 // Routes
-app.use('/api/books', bookRoutes);
-app.use('/api/auth', authRoutes);
+app.use('/api/v2', v2Router)
 
 module.exports = app;
+module.exports = router;

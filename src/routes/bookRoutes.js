@@ -16,7 +16,7 @@ const validateBook = [
 
 // Create a new book
 router.post('/', auth, validateBook, async (req, res, next) => {
-  logger.info('Attempt to create a new book', { user: req.user.username, bookTitle: req.body.title });
+  logger.info('Attempt to create a new book', { user: req.user._id, bookTitle: req.body.title });
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -26,14 +26,13 @@ router.post('/', auth, validateBook, async (req, res, next) => {
 
     const book = new Book({
       ...req.body,
-      addedBy: req.user.username,
-      addedAt: new Date()
+      addedBy: req.user._id
     });
     const savedBook = await book.save();
-    logger.info('Book created successfully', { bookId: book._id, user: req.user.username, statusCode: 201 });
+    logger.info('Book created successfully', { bookId: book._id, user: req.user._id, statusCode: 201 });
     res.status(201).json(savedBook);
   } catch (error) {
-    logger.error('Error creating book', { error: error.message, stack: error.stack, user: req.user.username, statusCode: 500 });
+    logger.error('Error creating book', { error: error.message, stack: error.stack, user: req.user._id, statusCode: 500 });
     next(error);
   }
 });
@@ -42,7 +41,7 @@ router.post('/', auth, validateBook, async (req, res, next) => {
 router.get('/', async (req, res, next) => {
   logger.info('Fetching all books');
   try {
-    const books = await Book.find();
+    const books = await Book.find().populate('addedBy', 'username');
     logger.info('Books fetched successfully', { count: books.length, statusCode: 200 });
     res.json(books);
   } catch (error) {
@@ -60,7 +59,7 @@ router.get('/:id', async (req, res, next) => {
       return res.status(400).json({ message: 'Invalid book ID' });
     }
 
-    const book = await Book.findById(req.params.id);
+    const book = await Book.findById(req.params.id).populate('addedBy', 'username');
     if (book) {
       logger.info('Book fetched successfully', { bookId: req.params.id, statusCode: 200 });
       res.json(book);
@@ -76,7 +75,7 @@ router.get('/:id', async (req, res, next) => {
 
 // Update a book (PUT)
 router.put('/:id', auth, validateBook, async (req, res, next) => {
-  logger.info('Attempt to update a book', { bookId: req.params.id, user: req.user.username });
+  logger.info('Attempt to update a book', { bookId: req.params.id, user: req.user._id });
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -94,19 +93,19 @@ router.put('/:id', auth, validateBook, async (req, res, next) => {
       logger.warn('Book not found for update', { bookId: req.params.id, statusCode: 404 });
       return res.status(404).json({ message: 'Book not found' });
     }
-    if (book.addedBy !== req.user.username) {
-      logger.warn('Unauthorized attempt to update book', { bookId: req.params.id, user: req.user.username, statusCode: 403 });
+    if (!book.addedBy.equals(req.user._id)) {
+      logger.warn('Unauthorized attempt to update book', { bookId: req.params.id, user: req.user._id, statusCode: 403 });
       return res.status(403).json({ message: 'You can only update books you added' });
     }
     const updatedBook = await Book.findByIdAndUpdate(
       req.params.id, 
-      { ...req.body, addedBy: req.user.username },
+      { ...req.body, addedBy: req.user._id },
       { new: true, runValidators: true }
-    );
-    logger.info('Book updated successfully', { bookId: req.params.id, user: req.user.username, statusCode: 200 });
+    ).populate('addedBy', 'username');
+    logger.info('Book updated successfully', { bookId: req.params.id, user: req.user._id, statusCode: 200 });
     res.json(updatedBook);
   } catch (error) {
-    logger.error('Error updating book', { error: error.message, stack: error.stack, bookId: req.params.id, user: req.user.username, statusCode: 500 });
+    logger.error('Error updating book', { error: error.message, stack: error.stack, bookId: req.params.id, user: req.user._id, statusCode: 500 });
     next(error);
   }
 });
@@ -118,7 +117,7 @@ router.patch('/:id', auth, [
   body('publishedYear').optional().isInt({ min: 1, max: new Date().getFullYear() })
     .withMessage('Published year must be a valid year'),
 ], async (req, res, next) => {
-  logger.info('Attempt to partially update a book', { bookId: req.params.id, user: req.user.username });
+  logger.info('Attempt to partially update a book', { bookId: req.params.id, user: req.user._id });
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -136,26 +135,26 @@ router.patch('/:id', auth, [
       logger.warn('Book not found for partial update', { bookId: req.params.id, statusCode: 404 });
       return res.status(404).json({ message: 'Book not found' });
     }
-    if (book.addedBy !== req.user.username) {
-      logger.warn('Unauthorized attempt to partially update book', { bookId: req.params.id, user: req.user.username, statusCode: 403 });
+    if (!book.addedBy.equals(req.user._id)) {
+      logger.warn('Unauthorized attempt to partially update book', { bookId: req.params.id, user: req.user._id, statusCode: 403 });
       return res.status(403).json({ message: 'You can only update books you added' });
     }
     const updatedBook = await Book.findByIdAndUpdate(
       req.params.id, 
-      { $set: { ...req.body, addedBy: req.user.username } },
+      { $set: req.body },
       { new: true, runValidators: true }
-    );
-    logger.info('Book partially updated successfully', { bookId: req.params.id, user: req.user.username, statusCode: 200 });
+    ).populate('addedBy', 'username');
+    logger.info('Book partially updated successfully', { bookId: req.params.id, user: req.user._id, statusCode: 200 });
     res.json(updatedBook);
   } catch (error) {
-    logger.error('Error partially updating book', { error: error.message, stack: error.stack, bookId: req.params.id, user: req.user.username, statusCode: 500 });
+    logger.error('Error partially updating book', { error: error.message, stack: error.stack, bookId: req.params.id, user: req.user._id, statusCode: 500 });
     next(error);
   }
 });
 
 // Delete a book
 router.delete('/:id', auth, async (req, res, next) => {
-  logger.info('Attempt to delete a book', { bookId: req.params.id, user: req.user.username });
+  logger.info('Attempt to delete a book', { bookId: req.params.id, user: req.user._id });
   try {
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
       logger.warn('Invalid book ID provided for deletion', { bookId: req.params.id, statusCode: 400 });
@@ -167,15 +166,15 @@ router.delete('/:id', auth, async (req, res, next) => {
       logger.warn('Book not found for deletion', { bookId: req.params.id, statusCode: 404 });
       return res.status(404).json({ message: 'Book not found' });
     }
-    if (book.addedBy !== req.user.username) {
-      logger.warn('Unauthorized attempt to delete book', { bookId: req.params.id, user: req.user.username, statusCode: 403 });
+    if (!book.addedBy.equals(req.user._id)) {
+      logger.warn('Unauthorized attempt to delete book', { bookId: req.params.id, user: req.user._id, statusCode: 403 });
       return res.status(403).json({ message: 'You can only delete books you added' });
     }
     await Book.findByIdAndDelete(req.params.id);
-    logger.info('Book deleted successfully', { bookId: req.params.id, user: req.user.username, statusCode: 200 });
+    logger.info('Book deleted successfully', { bookId: req.params.id, user: req.user._id, statusCode: 200 });
     res.json({ message: 'Book deleted successfully' });
   } catch (error) {
-    logger.error('Error deleting book', { error: error.message, stack: error.stack, bookId: req.params.id, user: req.user.username, statusCode: 500 });
+    logger.error('Error deleting book', { error: error.message, stack: error.stack, bookId: req.params.id, user: req.user._id, statusCode: 500 });
     next(error);
   }
 });
