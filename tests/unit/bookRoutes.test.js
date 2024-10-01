@@ -1,16 +1,18 @@
 const request = require('supertest');
 const express = require('express');
 const mongoose = require('mongoose');
-const { body, validationResult } = require('express-validator');
 const Book = require('../../src/models/bookModel');
 const auth = require('../../src/middleware/auth');
 const bookRoutes = require('../../src/routes/bookRoutes');
+
+// Create a mock ObjectId outside the mock function
+const mockUserId = new mongoose.Types.ObjectId();
 
 // Mock dependencies
 jest.mock('../../src/models/bookModel');
 jest.mock('../../src/middleware/auth', () => {
   return jest.fn((req, res, next) => {
-    req.user = { username: 'testuser' };
+    req.user = { _id: mockUserId, username: 'testuser' };
     next();
   });
 });
@@ -26,15 +28,19 @@ describe('Book Routes', () => {
 
   describe('POST /books', () => {
     it('should create a new book successfully', async () => {
+      const mockBookId = new mongoose.Types.ObjectId();
       const mockBook = {
         title: 'Test Book',
         author: 'Test Author',
         publishedYear: 2021,
-        addedBy: 'testuser'
+        addedBy: mockUserId
       };
+      const now = new Date();
       Book.prototype.save.mockResolvedValue({ 
         ...mockBook, 
-        _id: new mongoose.Types.ObjectId(),
+        _id: mockBookId,
+        createdAt: now,
+        updatedAt: now
       });
 
       const res = await request(app)
@@ -42,8 +48,13 @@ describe('Book Routes', () => {
         .send(mockBook);
 
       expect(res.statusCode).toBe(201);
-      expect(res.body).toMatchObject(mockBook);
-      expect(res.body._id).toBeDefined();
+      expect(res.body).toMatchObject({
+        ...mockBook,
+        _id: mockBookId.toString(),
+        addedBy: mockUserId.toString(),
+        createdAt: now.toISOString(),
+        updatedAt: now.toISOString()
+      });
     });
 
     it('should return 400 if validation fails', async () => {
@@ -58,36 +69,64 @@ describe('Book Routes', () => {
 
   describe('GET /books', () => {
     it('should return all books', async () => {
+      const now = new Date();
       const mockBooks = [
-        { title: 'Book 1', author: 'Author 1', publishedYear: 2021 },
-        { title: 'Book 2', author: 'Author 2', publishedYear: 2022 }
+        { _id: new mongoose.Types.ObjectId(), title: 'Book 1', author: 'Author 1', publishedYear: 2021, addedBy: mockUserId, createdAt: now, updatedAt: now },
+        { _id: new mongoose.Types.ObjectId(), title: 'Book 2', author: 'Author 2', publishedYear: 2022, addedBy: mockUserId, createdAt: now, updatedAt: now }
       ];
-      Book.find.mockResolvedValue(mockBooks.map(book => ({ ...book, _id: new mongoose.Types.ObjectId() })));
+      Book.find.mockReturnValue({
+        populate: jest.fn().mockResolvedValue(mockBooks)
+      });
 
       const res = await request(app).get('/books');
 
       expect(res.statusCode).toBe(200);
       expect(res.body).toHaveLength(2);
-      expect(res.body[0]._id).toBeDefined();
-      expect(res.body[1]._id).toBeDefined();
+      res.body.forEach((book, index) => {
+        expect(book).toMatchObject({
+          ...mockBooks[index],
+          _id: mockBooks[index]._id.toString(),
+          addedBy: mockUserId.toString(),
+          createdAt: now.toISOString(),
+          updatedAt: now.toISOString()
+        });
+      });
     });
   });
 
   describe('GET /books/:id', () => {
     it('should return a specific book', async () => {
-      const mockBook = { title: 'Book 1', author: 'Author 1', publishedYear: 2021 };
-      const mockId = new mongoose.Types.ObjectId();
-      Book.findById.mockResolvedValue({ ...mockBook, _id: mockId });
+      const now = new Date();
+      const mockBookId = new mongoose.Types.ObjectId();
+      const mockBook = { 
+        _id: mockBookId,
+        title: 'Book 1', 
+        author: 'Author 1', 
+        publishedYear: 2021,
+        addedBy: mockUserId,
+        createdAt: now,
+        updatedAt: now
+      };
+      Book.findById.mockReturnValue({
+        populate: jest.fn().mockResolvedValue(mockBook)
+      });
 
-      const res = await request(app).get(`/books/${mockId}`);
+      const res = await request(app).get(`/books/${mockBookId}`);
 
       expect(res.statusCode).toBe(200);
-      expect(res.body).toMatchObject(mockBook);
-      expect(res.body._id).toBeDefined();
+      expect(res.body).toMatchObject({
+        ...mockBook,
+        _id: mockBookId.toString(),
+        addedBy: mockUserId.toString(),
+        createdAt: now.toISOString(),
+        updatedAt: now.toISOString()
+      });
     });
 
     it('should return 404 if book not found', async () => {
-      Book.findById.mockResolvedValue(null);
+      Book.findById.mockReturnValue({
+        populate: jest.fn().mockResolvedValue(null)
+      });
 
       const res = await request(app).get(`/books/${new mongoose.Types.ObjectId()}`);
 
@@ -98,23 +137,34 @@ describe('Book Routes', () => {
 
   describe('PUT /books/:id', () => {
     it('should update a book successfully', async () => {
+      const now = new Date();
+      const mockBookId = new mongoose.Types.ObjectId();
       const mockBook = { 
+        _id: mockBookId,
         title: 'Updated Book', 
         author: 'Updated Author', 
         publishedYear: 2022,
-        addedBy: 'testuser'
+        addedBy: mockUserId,
+        createdAt: new Date(now.getTime() - 1000),
+        updatedAt: now
       };
-      const mockId = new mongoose.Types.ObjectId();
-      Book.findById.mockResolvedValue({ ...mockBook, _id: mockId });
-      Book.findByIdAndUpdate.mockResolvedValue({ ...mockBook, _id: mockId });
+      Book.findById.mockResolvedValue(mockBook);
+      Book.findByIdAndUpdate.mockReturnValue({
+        populate: jest.fn().mockResolvedValue(mockBook)
+      });
 
       const res = await request(app)
-        .put(`/books/${mockId}`)
+        .put(`/books/${mockBookId}`)
         .send(mockBook);
 
       expect(res.statusCode).toBe(200);
-      expect(res.body).toMatchObject(mockBook);
-      expect(res.body._id).toBeDefined();
+      expect(res.body).toMatchObject({
+        ...mockBook,
+        _id: mockBookId.toString(),
+        addedBy: mockUserId.toString(),
+        createdAt: mockBook.createdAt.toISOString(),
+        updatedAt: mockBook.updatedAt.toISOString()
+      });
     });
 
     it('should return 404 if book not found', async () => {
@@ -130,15 +180,16 @@ describe('Book Routes', () => {
 
     it('should return 403 if user is not the book creator', async () => {
       const mockBook = { 
+        _id: new mongoose.Types.ObjectId(),
         title: 'Book', 
         author: 'Author', 
         publishedYear: 2021,
-        addedBy: 'otheruser'
+        addedBy: new mongoose.Types.ObjectId() // Different from mockUserId
       };
-      Book.findById.mockResolvedValue({ ...mockBook, _id: new mongoose.Types.ObjectId() });
+      Book.findById.mockResolvedValue(mockBook);
 
       const res = await request(app)
-        .put(`/books/${new mongoose.Types.ObjectId()}`)
+        .put(`/books/${mockBook._id}`)
         .send({ title: 'Updated Book', author: 'Updated Author', publishedYear: 2022 });
 
       expect(res.statusCode).toBe(403);
@@ -148,27 +199,39 @@ describe('Book Routes', () => {
 
   describe('PATCH /books/:id', () => {
     it('should partially update a book successfully', async () => {
+      const now = new Date();
+      const mockBookId = new mongoose.Types.ObjectId();
       const mockBook = { 
+        _id: mockBookId,
         title: 'Original Book', 
         author: 'Original Author', 
         publishedYear: 2021,
-        addedBy: 'testuser'
+        addedBy: mockUserId,
+        createdAt: new Date(now.getTime() - 1000),
+        updatedAt: now
       };
       const updatedMockBook = { 
         ...mockBook,
-        title: 'Updated Book'
+        title: 'Updated Book',
+        updatedAt: new Date(now.getTime() + 1000)
       };
-      const mockId = new mongoose.Types.ObjectId();
-      Book.findById.mockResolvedValue({ ...mockBook, _id: mockId });
-      Book.findByIdAndUpdate.mockResolvedValue({ ...updatedMockBook, _id: mockId });
+      Book.findById.mockResolvedValue(mockBook);
+      Book.findByIdAndUpdate.mockReturnValue({
+        populate: jest.fn().mockResolvedValue(updatedMockBook)
+      });
 
       const res = await request(app)
-        .patch(`/books/${mockId}`)
+        .patch(`/books/${mockBookId}`)
         .send({ title: 'Updated Book' });
 
       expect(res.statusCode).toBe(200);
-      expect(res.body).toMatchObject(updatedMockBook);
-      expect(res.body._id).toBeDefined();
+      expect(res.body).toMatchObject({
+        ...updatedMockBook,
+        _id: mockBookId.toString(),
+        addedBy: mockUserId.toString(),
+        createdAt: updatedMockBook.createdAt.toISOString(),
+        updatedAt: updatedMockBook.updatedAt.toISOString()
+      });
     });
 
     it('should return 404 if book not found for PATCH', async () => {
@@ -184,15 +247,16 @@ describe('Book Routes', () => {
 
     it('should return 403 if user is not the book creator for PATCH', async () => {
       const mockBook = { 
+        _id: new mongoose.Types.ObjectId(),
         title: 'Book', 
         author: 'Author', 
         publishedYear: 2021,
-        addedBy: 'otheruser'
+        addedBy: new mongoose.Types.ObjectId() // Different from mockUserId
       };
-      Book.findById.mockResolvedValue({ ...mockBook, _id: new mongoose.Types.ObjectId() });
+      Book.findById.mockResolvedValue(mockBook);
 
       const res = await request(app)
-        .patch(`/books/${new mongoose.Types.ObjectId()}`)
+        .patch(`/books/${mockBook._id}`)
         .send({ title: 'Updated Book' });
 
       expect(res.statusCode).toBe(403);
@@ -200,16 +264,18 @@ describe('Book Routes', () => {
     });
 
     it('should return 400 if PATCH validation fails', async () => {
+      const mockBookId = new mongoose.Types.ObjectId();
       const mockBook = { 
+        _id: mockBookId,
         title: 'Book', 
         author: 'Author', 
         publishedYear: 2021,
-        addedBy: 'testuser'
+        addedBy: mockUserId
       };
-      Book.findById.mockResolvedValue({ ...mockBook, _id: new mongoose.Types.ObjectId() });
+      Book.findById.mockResolvedValue(mockBook);
 
       const res = await request(app)
-        .patch(`/books/${new mongoose.Types.ObjectId()}`)
+        .patch(`/books/${mockBookId}`)
         .send({ publishedYear: 'invalid' });
 
       expect(res.statusCode).toBe(400);
@@ -219,17 +285,21 @@ describe('Book Routes', () => {
 
   describe('DELETE /books/:id', () => {
     it('should delete a book successfully', async () => {
+      const now = new Date();
+      const mockBookId = new mongoose.Types.ObjectId();
       const mockBook = { 
+        _id: mockBookId,
         title: 'Book to Delete', 
         author: 'Author', 
         publishedYear: 2021,
-        addedBy: 'testuser'
+        addedBy: mockUserId,
+        createdAt: now,
+        updatedAt: now
       };
-      const mockId = new mongoose.Types.ObjectId();
-      Book.findById.mockResolvedValue({ ...mockBook, _id: mockId });
-      Book.findByIdAndDelete.mockResolvedValue({ ...mockBook, _id: mockId });
+      Book.findById.mockResolvedValue(mockBook);
+      Book.findByIdAndDelete.mockResolvedValue(mockBook);
 
-      const res = await request(app).delete(`/books/${mockId}`);
+      const res = await request(app).delete(`/books/${mockBookId}`);
 
       expect(res.statusCode).toBe(200);
       expect(res.body.message).toBe('Book deleted successfully');
@@ -246,14 +316,15 @@ describe('Book Routes', () => {
 
     it('should return 403 if user is not the book creator for deletion', async () => {
       const mockBook = { 
+        _id: new mongoose.Types.ObjectId(),
         title: 'Book', 
         author: 'Author', 
         publishedYear: 2021,
-        addedBy: 'otheruser'
+        addedBy: new mongoose.Types.ObjectId() // Different from mockUserId
       };
-      Book.findById.mockResolvedValue({ ...mockBook, _id: new mongoose.Types.ObjectId() });
+      Book.findById.mockResolvedValue(mockBook);
 
-      const res = await request(app).delete(`/books/${new mongoose.Types.ObjectId()}`);
+      const res = await request(app).delete(`/books/${mockBook._id}`);
 
       expect(res.statusCode).toBe(403);
       expect(res.body.message).toBe('You can only delete books you added');
