@@ -26,6 +26,6 @@ module.exports = (req, res, next) => {
     next();
   } catch (error) {
     logger.error(`Token verification failed: ${error.message}`);
-    res.status(403).json({ message: 'Token is not valid' });
+    return res.status(403).json({ message: 'Token is not valid' });
   }
 };
