@@ -29,9 +29,9 @@ router.post('/', auth, validateBook, async (req, res, next) => {
       addedBy: req.user.username,
       addedAt: new Date()
     });
-    await book.save();
+    const savedBook = await book.save();
     logger.info('Book created successfully', { bookId: book._id, user: req.user.username, statusCode: 201 });
-    res.status(201).json(book);
+    res.status(201).json(savedBook);
   } catch (error) {
     logger.error('Error creating book', { error: error.message, stack: error.stack, user: req.user.username, statusCode: 500 });
     next(error);
@@ -42,7 +42,7 @@ router.post('/', auth, validateBook, async (req, res, next) => {
 router.get('/', async (req, res, next) => {
   logger.info('Fetching all books');
   try {
-    const books = await Book.find().lean();
+    const books = await Book.find();
     logger.info('Books fetched successfully', { count: books.length, statusCode: 200 });
     res.json(books);
   } catch (error) {
@@ -60,7 +60,7 @@ router.get('/:id', async (req, res, next) => {
       return res.status(400).json({ message: 'Invalid book ID' });
     }
 
-    const book = await Book.findById(req.params.id).lean();
+    const book = await Book.findById(req.params.id);
     if (book) {
       logger.info('Book fetched successfully', { bookId: req.params.id, statusCode: 200 });
       res.json(book);
@@ -102,7 +102,7 @@ router.put('/:id', auth, validateBook, async (req, res, next) => {
       req.params.id, 
       { ...req.body, addedBy: req.user.username },
       { new: true, runValidators: true }
-    ).lean();
+    );
     logger.info('Book updated successfully', { bookId: req.params.id, user: req.user.username, statusCode: 200 });
     res.json(updatedBook);
   } catch (error) {
@@ -144,7 +144,7 @@ router.patch('/:id', auth, [
       req.params.id, 
       { $set: { ...req.body, addedBy: req.user.username } },
       { new: true, runValidators: true }
-    ).lean();
+    );
     logger.info('Book partially updated successfully', { bookId: req.params.id, user: req.user.username, statusCode: 200 });
     res.json(updatedBook);
   } catch (error) {

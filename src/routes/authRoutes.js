@@ -22,7 +22,7 @@ router.post('/register', [
     }
 
     // Check if username already exists
-    const existingUser = await User.findOne({ username: req.body.username }).lean();
+    const existingUser = await User.findOne({ username: req.body.username });
     if (existingUser) {
       logger.warn('Registration failed: username already exists', { username: req.body.username, statusCode: 400 });
       return res.status(400).json({ message: 'Username already exists' });
@@ -61,7 +61,7 @@ router.post('/login', [
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const user = await User.findOne({ username: req.body.username }).lean();
+    const user = await User.findOne({ username: req.body.username });
     if (user && await bcrypt.compare(req.body.password, user.password)) {
       const token = jwt.sign({ username: user.username }, config.jwtSecret, { expiresIn: '1h' });
       logger.info('User logged in successfully', { username: req.body.username, statusCode: 200 });
