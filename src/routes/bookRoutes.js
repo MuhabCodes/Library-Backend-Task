@@ -1,11 +1,26 @@
 const express = require('express');
 const router = express.Router();
+const { body, validationResult } = require('express-validator');
 const Book = require('../models/bookModel');
 const auth = require('../middleware/auth');
+const mongoose = require('mongoose');
+
+// Validation middleware
+const validateBook = [
+  body('title').notEmpty().withMessage('Title is required'),
+  body('author').notEmpty().withMessage('Author is required'),
+  body('publishedYear').isInt({ min: 1, max: new Date().getFullYear() })
+    .withMessage('Published year must be a valid year'),
+];
 
 // Create a new book
-router.post('/', auth, async (req, res, next) => {
+router.post('/', auth, validateBook, async (req, res, next) => {
   try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
     const book = new Book({
       ...req.body,
       addedBy: req.user.username,
@@ -28,7 +43,7 @@ router.post('/', auth, async (req, res, next) => {
 // Get all books
 router.get('/', async (req, res, next) => {
   try {
-    const books = await Book.find();
+    const books = await Book.find().lean();
     res.json(books);
   } catch (error) {
     next(error);
@@ -38,7 +53,11 @@ router.get('/', async (req, res, next) => {
 // Get a specific book
 router.get('/:id', async (req, res, next) => {
   try {
-    const book = await Book.findById(req.params.id);
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ message: 'Invalid book ID' });
+    }
+
+    const book = await Book.findById(req.params.id).lean();
     if (book) {
       res.json(book);
     } else {
@@ -50,8 +69,17 @@ router.get('/:id', async (req, res, next) => {
 });
 
 // Update a book (PUT)
-router.put('/:id', auth, async (req, res, next) => {
+router.put('/:id', auth, validateBook, async (req, res, next) => {
   try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ message: 'Invalid book ID' });
+    }
+
     const book = await Book.findById(req.params.id);
     if (!book) {
       return res.status(404).json({ message: 'Book not found' });
@@ -62,8 +90,8 @@ router.put('/:id', auth, async (req, res, next) => {
     const updatedBook = await Book.findByIdAndUpdate(
       req.params.id, 
       { ...req.body, addedBy: req.user.username },
-      { new: true }
-    );
+      { new: true, runValidators: true }
+    ).lean();
     res.json(updatedBook);
   } catch (error) {
     next(error);
@@ -71,8 +99,22 @@ router.put('/:id', auth, async (req, res, next) => {
 });
 
 // Partially update a book (PATCH)
-router.patch('/:id', auth, async (req, res, next) => {
+router.patch('/:id', auth, [
+  body('title').optional().notEmpty().withMessage('Title cannot be empty'),
+  body('author').optional().notEmpty().withMessage('Author cannot be empty'),
+  body('publishedYear').optional().isInt({ min: 1, max: new Date().getFullYear() })
+    .withMessage('Published year must be a valid year'),
+], async (req, res, next) => {
   try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ message: 'Invalid book ID' });
+    }
+
     const book = await Book.findById(req.params.id);
     if (!book) {
       return res.status(404).json({ message: 'Book not found' });
@@ -83,8 +125,8 @@ router.patch('/:id', auth, async (req, res, next) => {
     const updatedBook = await Book.findByIdAndUpdate(
       req.params.id, 
       { $set: { ...req.body, addedBy: req.user.username } },
-      { new: true }
-    );
+      { new: true, runValidators: true }
+    ).lean();
     res.json(updatedBook);
   } catch (error) {
     next(error);
@@ -94,6 +136,10 @@ router.patch('/:id', auth, async (req, res, next) => {
 // Delete a book
 router.delete('/:id', auth, async (req, res, next) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ message: 'Invalid book ID' });
+    }
+
     const book = await Book.findById(req.params.id);
     if (!book) {
       return res.status(404).json({ message: 'Book not found' });
