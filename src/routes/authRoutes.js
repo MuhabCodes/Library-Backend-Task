@@ -8,6 +8,65 @@ const config = require('../config');
 const logger = require('../utils/logger');
 
 // User registration
+/**
+ * @openapi
+ * tags:
+ *   name: Authentication
+ *   description: User authentication endpoints
+ */
+
+/**
+ * @openapi
+ * components:
+ *   schemas:
+ *     User:
+ *       type: object
+ *       required:
+ *         - username
+ *         - password
+ *       properties:
+ *         _id:
+ *           type: string
+ *           description: The auto-generated id of the user
+ *         username:
+ *           type: string
+ *           description: The username of the user
+ *           unique: true
+ *         password:
+ *           type: string
+ *           description: The password of the user (hashed)
+ */
+
+/**
+ * @swagger
+ * /auth/register:
+ *   post:
+ *     summary: Register a new user
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - username
+ *               - password
+ *             properties:
+ *               username:
+ *                 type: string
+ *                 minLength: 6
+ *               password:
+ *                 type: string
+ *                 minLength: 8
+ *     responses:
+ *       201:
+ *         description: User registered successfully
+ *       400:
+ *         description: Validation error or username already exists
+ *       500:
+ *         description: Server error
+ */
 router.post('/register', [
   body('username').isLength({ min: 6 }).withMessage('Username must be at least 6 characters long'),
   body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters long'),
@@ -48,6 +107,41 @@ router.post('/register', [
 });
 
 // User login
+/**
+ * @swagger
+ * /auth/login:
+ *   post:
+ *     summary: Login a user
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - username
+ *               - password
+ *             properties:
+ *               username:
+ *                 type: string
+ *               password:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Login successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 token:
+ *                   type: string
+ *       400:
+ *         description: Invalid credentials
+ *       500:
+ *         description: Server error
+ */
 router.post('/login', [
   body('username').notEmpty().withMessage('Username is required'),
   body('password').notEmpty().withMessage('Password is required'),

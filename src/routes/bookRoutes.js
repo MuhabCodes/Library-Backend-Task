@@ -14,7 +14,83 @@ const validateBook = [
     .withMessage('Published year must be a valid year'),
 ];
 
+/**
+ * @openapi
+ * tags:
+ *   name: Books
+ *   description: Book management endpoints
+ */
+
+/**
+ * @openapi
+ * components:
+ *   schemas:
+ *     Book:
+ *       type: object
+ *       required:
+ *         - title
+ *         - author
+ *         - publishedYear
+ *       properties:
+ *         _id:
+ *           type: string
+ *           description: The auto-generated id of the book
+ *         title:
+ *           type: string
+ *           description: The title of the book
+ *         author:
+ *           type: string
+ *           description: The author of the book
+ *         publishedYear:
+ *           type: integer
+ *           description: The year the book was published
+ *         addedBy:
+ *           $ref: '#/components/schemas/User'
+ *           description: The user who added the book
+ */
+
+
 // Create a new book
+/**
+ * @openapi
+ * /books:
+ *   post:
+ *     summary: Create a new book
+ *     tags: [Books]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/Book'
+ *     responses:
+ *       201:
+ *         description: The book was successfully created
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Book'
+ *       400:
+ *         description: Validation error
+ *       500:
+ *         description: Server error
+ *   get:
+ *     summary: Get all books
+ *     tags: [Books]
+ *     responses:
+ *       200:
+ *         description: The list of books
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Book'
+ *       500:
+ *         description: Server error
+ */
 router.post('/', auth, validateBook, async (req, res, next) => {
   logger.info('Attempt to create a new book', { user: req.user._id, bookTitle: req.body.title });
   try {
@@ -38,6 +114,24 @@ router.post('/', auth, validateBook, async (req, res, next) => {
 });
 
 // Get all books
+/**
+ * @openapi
+ * /books:
+ *   get:
+ *     summary: Get all books
+ *     tags: [Books]
+ *     responses:
+ *       200:
+ *         description: The list of books
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Book'
+ *       500:
+ *         description: Server error
+ */
 router.get('/', async (req, res, next) => {
   logger.info('Fetching all books');
   try {
@@ -51,6 +145,33 @@ router.get('/', async (req, res, next) => {
 });
 
 // Get a specific book
+/**
+ * @openapi
+ * /books/{id}:
+ *   get:
+ *     summary: Get a specific book
+ *     tags: [Books]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The book ID
+ *     responses:
+ *       200:
+ *         description: The book details
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Book'
+ *       400:
+ *         description: Invalid book ID
+ *       404:
+ *         description: Book not found
+ *       500:
+ *         description: Server error
+ */
 router.get('/:id', async (req, res, next) => {
   logger.info('Fetching a specific book', { bookId: req.params.id });
   try {
@@ -74,6 +195,43 @@ router.get('/:id', async (req, res, next) => {
 });
 
 // Update a book (PUT)
+/**
+ * @openapi
+ * /books/{id}:
+ *   put:
+ *     summary: Update a book
+ *     tags: [Books]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The book ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/Book'
+ *     responses:
+ *       200:
+ *         description: The updated book
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Book'
+ *       400:
+ *         description: Validation error or invalid book ID
+ *       403:
+ *         description: Unauthorized - can only update books you added
+ *       404:
+ *         description: Book not found
+ *       500:
+ *         description: Server error
+ */
 router.put('/:id', auth, validateBook, async (req, res, next) => {
   logger.info('Attempt to update a book', { bookId: req.params.id, user: req.user._id });
   try {
@@ -111,6 +269,50 @@ router.put('/:id', auth, validateBook, async (req, res, next) => {
 });
 
 // Partially update a book (PATCH)
+/**
+ * @openapi
+ * /books/{id}:
+ *   patch:
+ *     summary: Partially update a book
+ *     tags: [Books]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The book ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               title:
+ *                 type: string
+ *               author:
+ *                 type: string
+ *               publishedYear:
+ *                 type: integer
+ *     responses:
+ *       200:
+ *         description: The updated book
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Book'
+ *       400:
+ *         description: Validation error or invalid book ID
+ *       403:
+ *         description: Unauthorized - can only update books you added
+ *       404:
+ *         description: Book not found
+ *       500:
+ *         description: Server error
+ */
 router.patch('/:id', auth, [
   body('title').optional().notEmpty().withMessage('Title cannot be empty'),
   body('author').optional().notEmpty().withMessage('Author cannot be empty'),
@@ -153,6 +355,33 @@ router.patch('/:id', auth, [
 });
 
 // Delete a book
+/**
+ * @openapi
+ * /books/{id}:
+ *   delete:
+ *     summary: Delete a book
+ *     tags: [Books]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The book ID
+ *     responses:
+ *       200:
+ *         description: Book deleted successfully
+ *       400:
+ *         description: Invalid book ID
+ *       403:
+ *         description: Unauthorized - can only delete books you added
+ *       404:
+ *         description: Book not found
+ *       500:
+ *         description: Server error
+ */
 router.delete('/:id', auth, async (req, res, next) => {
   logger.info('Attempt to delete a book', { bookId: req.params.id, user: req.user._id });
   try {
