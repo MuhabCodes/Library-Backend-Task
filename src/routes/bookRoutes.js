@@ -94,12 +94,14 @@ const validateBook = [
 router.post('/', auth, validateBook, async (req, res, next) => {
   logger.info('Attempt to create a new book', { user: req.user._id, bookTitle: req.body.title });
   try {
+    // Validate Input
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       logger.warn('Book creation failed: validation errors', { errors: errors.array(), statusCode: 400 });
       return res.status(400).json({ errors: errors.array() });
     }
 
+    // Create & save the new book
     const book = new Book({
       ...req.body,
       addedBy: req.user._id
@@ -175,11 +177,13 @@ router.get('/', async (req, res, next) => {
 router.get('/:id', async (req, res, next) => {
   logger.info('Fetching a specific book', { bookId: req.params.id });
   try {
+    // Validate book ID
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
       logger.warn('Invalid book ID provided', { bookId: req.params.id, statusCode: 400 });
       return res.status(400).json({ message: 'Invalid book ID' });
     }
 
+    // Find and return book
     const book = await Book.findById(req.params.id).populate('addedBy', 'username');
     if (book) {
       logger.info('Book fetched successfully', { bookId: req.params.id, statusCode: 200 });
@@ -235,26 +239,32 @@ router.get('/:id', async (req, res, next) => {
 router.put('/:id', auth, validateBook, async (req, res, next) => {
   logger.info('Attempt to update a book', { bookId: req.params.id, user: req.user._id });
   try {
+    // Validate input
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       logger.warn('Book update failed: validation errors', { errors: errors.array(), statusCode: 400 });
       return res.status(400).json({ errors: errors.array() });
     }
 
+    // Validate book ID
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
       logger.warn('Invalid book ID provided', { bookId: req.params.id, statusCode: 400 });
       return res.status(400).json({ message: 'Invalid book ID' });
     }
 
+    // Check if book exists
     const book = await Book.findById(req.params.id);
     if (!book) {
       logger.warn('Book not found for update', { bookId: req.params.id, statusCode: 404 });
       return res.status(404).json({ message: 'Book not found' });
     }
+    // Check if the user has permission to update the matching book
     if (!book.addedBy.equals(req.user._id)) {
       logger.warn('Unauthorized attempt to update book', { bookId: req.params.id, user: req.user._id, statusCode: 403 });
       return res.status(403).json({ message: 'You can only update books you added' });
     }
+
+    // Update book
     const updatedBook = await Book.findByIdAndUpdate(
       req.params.id, 
       { ...req.body, addedBy: req.user._id },
@@ -321,26 +331,32 @@ router.patch('/:id', auth, [
 ], async (req, res, next) => {
   logger.info('Attempt to partially update a book', { bookId: req.params.id, user: req.user._id });
   try {
+    // Validate input
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       logger.warn('Book partial update failed: validation errors', { errors: errors.array(), statusCode: 400 });
       return res.status(400).json({ errors: errors.array() });
     }
 
+    // Validate book ID
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
       logger.warn('Invalid book ID provided', { bookId: req.params.id, statusCode: 400 });
       return res.status(400).json({ message: 'Invalid book ID' });
     }
 
+    // Check if book exists
     const book = await Book.findById(req.params.id);
     if (!book) {
       logger.warn('Book not found for partial update', { bookId: req.params.id, statusCode: 404 });
       return res.status(404).json({ message: 'Book not found' });
     }
+    // Check if the user has permission to update the matching book
     if (!book.addedBy.equals(req.user._id)) {
       logger.warn('Unauthorized attempt to partially update book', { bookId: req.params.id, user: req.user._id, statusCode: 403 });
       return res.status(403).json({ message: 'You can only update books you added' });
     }
+
+    // Partially update the book
     const updatedBook = await Book.findByIdAndUpdate(
       req.params.id, 
       { $set: req.body },
@@ -385,20 +401,27 @@ router.patch('/:id', auth, [
 router.delete('/:id', auth, async (req, res, next) => {
   logger.info('Attempt to delete a book', { bookId: req.params.id, user: req.user._id });
   try {
+    // Validate book ID
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
       logger.warn('Invalid book ID provided for deletion', { bookId: req.params.id, statusCode: 400 });
       return res.status(400).json({ message: 'Invalid book ID' });
     }
 
+    // Check if book exists
     const book = await Book.findById(req.params.id);
     if (!book) {
       logger.warn('Book not found for deletion', { bookId: req.params.id, statusCode: 404 });
       return res.status(404).json({ message: 'Book not found' });
     }
+
+    // Check if the user has permission to update the matching book
     if (!book.addedBy.equals(req.user._id)) {
       logger.warn('Unauthorized attempt to delete book', { bookId: req.params.id, user: req.user._id, statusCode: 403 });
       return res.status(403).json({ message: 'You can only delete books you added' });
     }
+
+
+    // Delete book
     await Book.findByIdAndDelete(req.params.id);
     logger.info('Book deleted successfully', { bookId: req.params.id, user: req.user._id, statusCode: 200 });
     res.json({ message: 'Book deleted successfully' });

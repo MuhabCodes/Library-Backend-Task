@@ -68,6 +68,7 @@ const logger = require('../utils/logger');
  *         description: Server error
  */
 router.post('/register', [
+  // Validation Middleware
   body('username').isLength({ min: 6 }).withMessage('Username must be at least 6 characters long'),
   body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters long'),
 ], async (req, res, next) => {
@@ -87,6 +88,7 @@ router.post('/register', [
       return res.status(400).json({ message: 'Username already exists' });
     }
 
+    // Hash the password & create new user
     const hashedPassword = await bcrypt.hash(req.body.password, 10);
     const user = new User({
       username: req.body.username,
@@ -143,6 +145,7 @@ router.post('/register', [
  *         description: Server error
  */
 router.post('/login', [
+  // Validation Middleware
   body('username').notEmpty().withMessage('Username is required'),
   body('password').notEmpty().withMessage('Password is required'),
 ], async (req, res, next) => {
@@ -155,6 +158,7 @@ router.post('/login', [
       return res.status(400).json({ errors: errors.array() });
     }
 
+    // Check user credentials and generate JWT on successful match
     const user = await User.findOne({ username: req.body.username });
     if (user && await bcrypt.compare(req.body.password, user.password)) {
       const token = jwt.sign({ username: user.username }, config.jwtSecret, { expiresIn: '1h' });
